@@ -36,14 +36,14 @@ class InviteServerTransaction extends TransactionBase {
   }
 
   void timer_H() {
-    logger.debug('Timer H expired for transaction $id');
+    logger.d('Timer H expired for transaction $id');
 
     if (state == TransactionState.COMPLETED) {
-      logger.debug('ACK not received, dialog will be terminated');
+      logger.d('ACK not received, dialog will be terminated');
     }
 
     stateChanged(TransactionState.TERMINATED);
-    ua!.destroyTransaction(this);
+    ua.destroyTransaction(this);
   }
 
   void timer_I() {
@@ -52,11 +52,11 @@ class InviteServerTransaction extends TransactionBase {
 
   // RFC 6026 7.1.
   void timer_L() {
-    logger.debug('Timer L expired for transaction $id');
+    logger.d('Timer L expired for transaction $id');
 
     if (state == TransactionState.ACCEPTED) {
       stateChanged(TransactionState.TERMINATED);
-      ua!.destroyTransaction(this);
+      ua.destroyTransaction(this);
     }
   }
 
@@ -65,7 +65,7 @@ class InviteServerTransaction extends TransactionBase {
     if (transportError == null) {
       transportError = true;
 
-      logger.debug('transport error occurred, deleting transaction $id');
+      logger.d('transport error occurred, deleting transaction $id');
 
       if (_resendProvisionalTimer != null) {
         clearInterval(_resendProvisionalTimer);
@@ -77,7 +77,7 @@ class InviteServerTransaction extends TransactionBase {
       clearTimeout(I);
 
       stateChanged(TransactionState.TERMINATED);
-      ua!.destroyTransaction(this);
+      ua.destroyTransaction(this);
     }
   }
 

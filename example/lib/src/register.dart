@@ -4,19 +4,22 @@ import 'package:sip_ua/sip_ua.dart';
 
 class RegisterWidget extends StatefulWidget {
   final SIPUAHelper? _helper;
+
   RegisterWidget(this._helper, {Key? key}) : super(key: key);
+
   @override
-  _MyRegisterWidget createState() => _MyRegisterWidget();
+  State<RegisterWidget> createState() => _MyRegisterWidget();
 }
 
 class _MyRegisterWidget extends State<RegisterWidget>
     implements SipUaHelperListener {
-  TextEditingController _passwordController = TextEditingController();
-  TextEditingController _wsUriController = TextEditingController();
-  TextEditingController _sipUriController = TextEditingController();
-  TextEditingController _displayNameController = TextEditingController();
-  TextEditingController _authorizationUserController = TextEditingController();
-  Map<String, String> _wsExtraHeaders = {
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _wsUriController = TextEditingController();
+  final TextEditingController _sipUriController = TextEditingController();
+  final TextEditingController _displayNameController = TextEditingController();
+  final TextEditingController _authorizationUserController =
+      TextEditingController();
+  final Map<String, String> _wsExtraHeaders = {
     // 'Origin': ' https://tryit.jssip.net',
     // 'Host': 'tryit.jssip.net:10443'
   };
@@ -26,7 +29,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
   SIPUAHelper? get helper => widget._helper;
 
   @override
-  initState() {
+  void initState() {
     super.initState();
     _registerState = helper!.registerState;
     helper!.addSipUaHelperListener(this);
@@ -34,7 +37,17 @@ class _MyRegisterWidget extends State<RegisterWidget>
   }
 
   @override
-  deactivate() {
+  void dispose() {
+    _passwordController.dispose();
+    _wsUriController.dispose();
+    _sipUriController.dispose();
+    _displayNameController.dispose();
+    _authorizationUserController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void deactivate() {
     super.deactivate();
     helper!.removeSipUaHelperListener(this);
     _saveSettings();
@@ -42,7 +55,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
 
   void _loadSettings() async {
     _preferences = await SharedPreferences.getInstance();
-    this.setState(() {
+    setState(() {
       _wsUriController.text =
           _preferences.getString('ws_uri') ?? 'wss://tryit.jssip.net:10443';
       _sipUriController.text =
@@ -65,13 +78,13 @@ class _MyRegisterWidget extends State<RegisterWidget>
 
   @override
   void registrationStateChanged(RegistrationState state) {
-    this.setState(() {
+    setState(() {
       _registerState = state;
     });
   }
 
   void _alert(BuildContext context, String alertFieldName) {
-    showDialog<Null>(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
@@ -118,167 +131,75 @@ class _MyRegisterWidget extends State<RegisterWidget>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text("SIP Account"),
-        ),
-        body: Align(
-            alignment: Alignment(0, 0),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: <Widget>[
-                  Column(
-                    children: <Widget>[
-                      Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(48.0, 18.0, 48.0, 18.0),
-                        child: Center(
-                            child: Text(
-                          'Register Status: ${EnumHelper.getName(_registerState.state)}',
-                          style: TextStyle(fontSize: 18, color: Colors.black54),
-                        )),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 18.0, 48.0, 0),
-                        child: Align(
-                          child: Text('WebSocket:'),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 0.0, 48.0, 0),
-                        child: TextFormField(
-                          controller: _wsUriController,
-                          keyboardType: TextInputType.text,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.all(10.0),
-                            border: UnderlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(46.0, 18.0, 48.0, 0),
-                        child: Align(
-                          child: Text('SIP URI:'),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 0.0, 48.0, 0),
-                        child: TextFormField(
-                          controller: _sipUriController,
-                          keyboardType: TextInputType.text,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.all(10.0),
-                            border: UnderlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(46.0, 18.0, 48.0, 0),
-                        child: Align(
-                          child: Text('Authorization User:'),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 0.0, 48.0, 0),
-                        child: TextFormField(
-                          controller: _authorizationUserController,
-                          keyboardType: TextInputType.text,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.all(10.0),
-                            border: UnderlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black12)),
-                            hintText: _authorizationUserController.text.isEmpty
-                                ? '[Empty]'
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(46.0, 18.0, 48.0, 0),
-                        child: Align(
-                          child: Text('Password:'),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 0.0, 48.0, 0),
-                        child: TextFormField(
-                          controller: _passwordController,
-                          keyboardType: TextInputType.text,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.all(10.0),
-                            border: UnderlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black12)),
-                            hintText: _passwordController.text.isEmpty
-                                ? '[Empty]'
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(46.0, 18.0, 48.0, 0),
-                        child: Align(
-                          child: Text('Display Name:'),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(48.0, 0.0, 48.0, 0),
-                        child: TextFormField(
-                          controller: _displayNameController,
-                          keyboardType: TextInputType.text,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.all(10.0),
-                            border: UnderlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                      padding: const EdgeInsets.fromLTRB(0.0, 18.0, 0.0, 0.0),
-                      child: Container(
-                        height: 48.0,
-                        width: 160.0,
-                        child: MaterialButton(
-                          child: Text(
-                            'Register',
-                            style:
-                                TextStyle(fontSize: 16.0, color: Colors.white),
-                          ),
-                          color: Colors.blue,
-                          textColor: Colors.white,
-                          onPressed: () => _handleSave(context),
-                        ),
-                      ))
-                ])));
+      appBar: AppBar(
+        title: Text("SIP Account"),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+        children: <Widget>[
+          Center(
+            child: Text(
+              'Register Status: ${EnumHelper.getName(_registerState.state)}',
+              style: TextStyle(fontSize: 18, color: Colors.black54),
+            ),
+          ),
+          SizedBox(height: 40),
+          Text('WebSocket:'),
+          TextFormField(
+            controller: _wsUriController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 20),
+          Text('SIP URI:'),
+          TextFormField(
+            controller: _sipUriController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 20),
+          Text('Authorization User:'),
+          TextFormField(
+            controller: _authorizationUserController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              hintText:
+                  _authorizationUserController.text.isEmpty ? '[Empty]' : null,
+            ),
+          ),
+          SizedBox(height: 20),
+          Text('Password:'),
+          TextFormField(
+            controller: _passwordController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              hintText: _passwordController.text.isEmpty ? '[Empty]' : null,
+            ),
+          ),
+          SizedBox(height: 20),
+          Text('Display Name:'),
+          TextFormField(
+            controller: _displayNameController,
+            keyboardType: TextInputType.text,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              hintText: _displayNameController.text.isEmpty ? '[Empty]' : null,
+            ),
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            child: Text('Register'),
+            onPressed: () => _handleSave(context),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -291,6 +212,11 @@ class _MyRegisterWidget extends State<RegisterWidget>
 
   @override
   void onNewMessage(SIPMessageRequest msg) {
+    // NO OP
+  }
+
+  @override
+  void onNewNotify(Notify ntf) {
     // NO OP
   }
 }

@@ -14,7 +14,7 @@ IncomingMessage? parseMessage(String data, UA? ua) {
   int headerEnd = data.indexOf('\r\n');
 
   if (headerEnd == -1) {
-    logger.error('parseMessage() | no CRLF found, not a SIP message');
+    logger.e('parseMessage() | no CRLF found, not a SIP message');
     return null;
   }
 
@@ -29,7 +29,7 @@ IncomingMessage? parseMessage(String data, UA? ua) {
   }
 
   if (parsed == -1) {
-    logger.error(
+    logger.e(
         'parseMessage() | error parsing first line of SIP message: "$firstLine"');
 
     return null;
@@ -60,7 +60,7 @@ IncomingMessage? parseMessage(String data, UA? ua) {
     }
     // Data.indexOf returned -1 due to a malformed message.
     else if (headerEnd == -1) {
-      logger.error('parseMessage() | malformed message');
+      logger.e('parseMessage() | malformed message');
 
       return null;
     }
@@ -68,7 +68,7 @@ IncomingMessage? parseMessage(String data, UA? ua) {
     parsed = parseHeader(message, data, headerStart, headerEnd);
 
     if (parsed != true) {
-      logger.error('parseMessage() |' + parsed['error']);
+      logger.e('parseMessage() |${parsed['error']}');
       return null;
     }
 
@@ -87,9 +87,8 @@ IncomingMessage? parseMessage(String data, UA? ua) {
     }
     contentLength ??= 0;
     if (contentLength > 0) {
-      List<int> encoded = utf8.encode(data);
-      List<int> content =
-          encoded.sublist(bodyStart, bodyStart + contentLength as int);
+      List<int> encoded = utf8.encode(data.substring(bodyStart));
+      List<int> content = encoded.sublist(0, contentLength as int);
       message.body = utf8.decode(content);
     }
   } else {

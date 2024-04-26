@@ -12,7 +12,7 @@ void main() {
     Completer<dynamic> completer = Completer<dynamic>();
     config.Settings configuration = config.Settings();
     configuration.sockets = <WebSocketInterface>[
-      WebSocketInterface('ws://127.0.0.1:5070/sip')
+      WebSocketInterface('ws://127.0.0.1:5070/sip', messageDelay: 0)
     ];
     configuration.authorization_user = '100';
     configuration.password = '100';
@@ -20,17 +20,17 @@ void main() {
     try {
       ua = UA(configuration);
       ua.on(EventSocketConnecting(), (EventSocketConnecting data) {
-        print('connecting => ' + data.toString());
+        print('connecting => $data');
       });
 
       ua.on<EventSocketConnected>(EventSocketConnected,
           (EventSocketConnected data) {
-        print('connected => ' + data.toString());
+        print('connected => $data');
       });
 
       ua.on<EventSocketDisconnected>(EventSocketDisconnected,
           (EventSocketDisconnected data) {
-        print('disconnected => ' + data.toString());
+        print('disconnected => $data');
       });
       ua.start();
     } catch (e) {

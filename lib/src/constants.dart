@@ -1,4 +1,4 @@
-const String USER_AGENT = 'dart-sip-ua v0.2.2';
+const String USER_AGENT = 'dart-sip-ua v0.5.3';
 
 // SIP scheme.
 const String SIP = 'sip';
@@ -209,7 +209,7 @@ Map<int, String> REASON_PHRASE = <int, String>{
 };
 
 const String ALLOWED_METHODS =
-    'INVITE,ACK,CANCEL,BYE,UPDATE,MESSAGE,OPTIONS,REFER,INFO';
+    'INVITE,ACK,CANCEL,BYE,UPDATE,MESSAGE,OPTIONS,REFER,INFO,NOTIFY';
 const String ACCEPTED_BODY_TYPES = 'application/sdp, application/dtmf-relay';
 const int MAX_FORWARDS = 69;
 const int SESSION_EXPIRES = 90;

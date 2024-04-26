@@ -16,8 +16,8 @@ A dart-lang version of the SIP UA stack, ported from [JsSIP](https://github.com/
 - [X] Android
 - [X] Web
 - [X] macOS
+- [X] Windows
 - [ ] Linux
-- [ ] Windows
 - [ ] Fuchsia
 
 ## Install
@@ -68,6 +68,7 @@ The project is inseparable from the contributors of the community.
 - [CloudWebRTC](https://github.com/cloudwebrtc) - Original Author
 - [Robert Sutton](https://github.com/rlsutton1) - Contributor
 - [Gavin Henry](https://github.com/ghenry) - Contributor
+- [Perondas](https://github.com/Perondas) - Contributor
 
 ## License
 dart-sip-ua is released under the [MIT license](https://github.com/cloudwebrtc/dart-sip-ua/blob/master/LICENSE).

@@ -23,7 +23,7 @@ class ActionButton extends StatefulWidget {
       : super(key: key);
 
   @override
-  _ActionButtonState createState() => _ActionButtonState();
+  State<ActionButton> createState() => _ActionButtonState();
 }
 
 class _ActionButtonState extends State<ActionButton> {
@@ -39,12 +39,10 @@ class _ActionButtonState extends State<ActionButton> {
             onTap: widget.onPressed,
             child: RawMaterialButton(
               onPressed: widget.onPressed,
-              splashColor: widget.fillColor != null
-                  ? widget.fillColor
-                  : (widget.checked ? Colors.white : Colors.blue),
-              fillColor: widget.fillColor != null
-                  ? widget.fillColor
-                  : (widget.checked ? Colors.blue : Colors.white),
+              splashColor: widget.fillColor ??
+                  (widget.checked ? Colors.white : Colors.blue),
+              fillColor: widget.fillColor ??
+                  (widget.checked ? Colors.blue : Colors.white),
               elevation: 10.0,
               shape: CircleBorder(),
               child: Padding(
@@ -56,16 +54,12 @@ class _ActionButtonState extends State<ActionButton> {
                             Text('${widget.title}',
                                 style: TextStyle(
                                   fontSize: 18,
-                                  color: widget.fillColor != null
-                                      ? widget.fillColor
-                                      : Colors.grey[500],
+                                  color: widget.fillColor ?? Colors.grey[500],
                                 )),
-                            Text('${widget.subTitle}'.toUpperCase(),
+                            Text(widget.subTitle.toUpperCase(),
                                 style: TextStyle(
                                   fontSize: 8,
-                                  color: widget.fillColor != null
-                                      ? widget.fillColor
-                                      : Colors.grey[500],
+                                  color: widget.fillColor ?? Colors.grey[500],
                                 ))
                           ])
                     : Icon(
@@ -88,9 +82,7 @@ class _ActionButtonState extends State<ActionButton> {
                         widget.title!,
                         style: TextStyle(
                           fontSize: 15.0,
-                          color: widget.fillColor != null
-                              ? widget.fillColor
-                              : Colors.grey[500],
+                          color: widget.fillColor ?? Colors.grey[500],
                         ),
                       ),
               )

@@ -4,6 +4,7 @@ import 'events.dart';
 export 'call_events.dart';
 export 'events.dart';
 export 'message_events.dart';
+export 'options_events.dart';
 export 'refer_events.dart';
 export 'register_events.dart';
 export 'transport_events.dart';
@@ -68,7 +69,7 @@ class EventManager {
       targets.remove(listener);
       targets.add(listener);
     } catch (e, s) {
-      logger.error(e.toString(), null, s);
+      logger.e(e.toString(), error: e, stackTrace: s);
     }
   }
 
@@ -87,9 +88,9 @@ class EventManager {
     if (targets == null) {
       return;
     }
-    //    logger.warn("removing $eventType on $listener");
+    //    logger.w("removing $eventType on $listener");
     if (!targets.remove(listener)) {
-      logger.warn('Failed to remove any listeners for EventType $eventType');
+      logger.w('Failed to remove any listeners for EventType $eventType');
     }
   }
 
@@ -104,10 +105,10 @@ class EventManager {
 
       for (dynamic target in copy) {
         try {
-          //   logger.warn("invoking $event on $target");
+          //   logger.w("invoking $event on $target");
           target(event);
         } catch (e, s) {
-          logger.error(e.toString(), null, s);
+          logger.e(e.toString(), error: e, stackTrace: s);
         }
       }
     }

@@ -123,14 +123,14 @@ class DTMF extends EventManager {
       List<String> body = request.body!.split('\n');
 
       if (body.length >= 1) {
-        if ((body[0]).contains(RegExp(reg_tone))) {
+        if (body[0].contains(RegExp(reg_tone))) {
           _tone = body[0].replaceAll(reg_tone, '\$2');
         }
       }
       if (body.length >= 2) {
-        if ((body[1]).contains(RegExp(reg_duration))) {
+        if (body[1].contains(RegExp(reg_duration))) {
           _duration =
-              Utils.parseInt(body[1].replaceAll(reg_duration, '\$2'), 10);
+              int.tryParse(body[1].replaceAll(reg_duration, '\$2'), radix: 10);
         }
       }
     }
@@ -138,7 +138,7 @@ class DTMF extends EventManager {
     _duration ??= C.DEFAULT_DURATION;
 
     if (_tone == null) {
-      logger.debug('invalid INFO DTMF received, discarded');
+      logger.d('invalid INFO DTMF received, discarded');
     } else {
       _session.newDTMF('remote', this, request);
     }

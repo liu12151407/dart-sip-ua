@@ -61,6 +61,9 @@ class Settings {
 
   /// ICE Gathering Timeout (in millisecond).
   int ice_gathering_timeout = 500;
+
+  /// Sip Message Delay (in millisecond) ( default 0 ).
+  int sip_message_delay = 0;
 }
 
 // Configuration checks.
@@ -78,9 +81,7 @@ class Checks {
       List<WebSocketInterface> copy = <WebSocketInterface>[];
       if (sockets is List && sockets!.length > 0) {
         for (WebSocketInterface socket in sockets) {
-          if (Socket.isSocket(socket)) {
-            copy.add(socket);
-          }
+          copy.add(socket);
         }
       } else {
         throw Exceptions.ConfigurationError('sockets', sockets);
@@ -242,6 +243,9 @@ class Checks {
       if (dtmf_mode == null) return;
       dst!.dtmf_mode = dtmf_mode;
     },
+    'ice_gathering_timeout': (Settings src, Settings? dst) {
+      dst!.ice_gathering_timeout = src.ice_gathering_timeout;
+    }
   };
 }
 
@@ -252,18 +256,18 @@ void load(Settings src, Settings? dst) {
     // Check Mandatory parameters.
     checks.mandatory
         .forEach((String parameter, Null Function(Settings, Settings?) fun) {
-      logger.info('Check mandatory parameter => $parameter.');
+      logger.i('Check mandatory parameter => $parameter.');
       fun(src, dst);
     });
 
     // Check Optional parameters.
     checks.optional
         .forEach((String parameter, Null Function(Settings, Settings?) fun) {
-      logger.debug('Check optional parameter => $parameter.');
+      logger.d('Check optional parameter => $parameter.');
       fun(src, dst);
     });
   } catch (e) {
-    logger.error('Failed to load config: ${e.toString()}');
+    logger.e('Failed to load config: ${e.toString()}');
     throw e;
   }
 }

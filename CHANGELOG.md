@@ -1,6 +1,52 @@
 # Changelog
 
 --------------------------------------------
+[0.5.8] - 2023.05.11
+* Allow await on helper start call (#365)
+* Adding params support for sendMessage (#366)
+* Set intl version to the one used by flutter
+
+[0.5.7] - 2023.05.11
+* Add sendMessage to Call
+* Bump version of intl
+
+[0.5.6] - 2023.04.17
+
+* Reverted version constraint on intl
+* Bumped version of flutter_webrtc
+
+[0.5.5] - 2023.03.08
+
+* Bump version for intl & lints
+* Update websocket_web_impl.dart (#345)
+* fix(hangup): set cancel reason nullable (#346)
+* Add sdp transformers (#350)
+* Hold fix (#351)
+
+[0.5.4] - 2023.02.20
+
+* Bump version for flutter-webrtc
+* Fixed error handling in _receiveInviteResponse #344
+* Updated logger #342
+* Websocket message queue using streams and Delay between messages #335
+* Fixed bugs in message.dart & rtc_session.dart #332
+* Allow setting ice_gathering_timeout option #330
+* Add realm option to SIPUAHelper settings #331
+* Code quality #326
+
+[0.5.3] - 2022.10.19
+
+* Bump version for flutter-webrtc
+* Fix nullability in subscriber
+* Fix flutter test
+* Fix subscription parsing grammar
+* Added ability to supply custom logger
+* Added ability to get call statistics
+
+[0.5.2] - 2022.08.05
+
+* chore: Fix hold/unhold.
+
 [0.5.1] - 2022.02.13
 
 * chore: Fix compilation error for web.

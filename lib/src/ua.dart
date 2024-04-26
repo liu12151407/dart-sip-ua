@@ -1,21 +1,23 @@
 import 'dart:async';
 
-import 'package:sip_ua/src/data.dart';
 import 'config.dart' as config;
 import 'config.dart';
 import 'constants.dart' as DartSIP_C;
 import 'constants.dart';
+import 'data.dart';
 import 'dialog.dart';
 import 'event_manager/event_manager.dart';
 import 'event_manager/internal_events.dart';
 import 'exceptions.dart' as Exceptions;
 import 'logger.dart';
 import 'message.dart';
+import 'options.dart';
 import 'parser.dart' as Parser;
 import 'registrator.dart';
 import 'rtc_session.dart';
 import 'sanity_check.dart';
 import 'sip_message.dart';
+import 'subscriber.dart';
 import 'timers.dart';
 import 'transactions/invite_client.dart';
 import 'transactions/invite_server.dart';
@@ -40,6 +42,7 @@ class C {
   static const int NETWORK_ERROR = 2;
 }
 
+// TODO(Perondas): Figure out what this is
 final bool hasRTCPeerConnection = true;
 
 class DynamicSettings {
@@ -82,35 +85,8 @@ class Contact {
  * @throws {TypeError} If no configuration is given.
  */
 class UA extends EventManager {
-  UA(Settings? configuration) {
-    logger.debug('new() [configuration:${configuration.toString()}]');
-
-    _cache = <String, dynamic>{'credentials': <dynamic>{}};
-
-    _configuration = Settings();
-    _dynConfiguration = DynamicSettings();
-    _dialogs = <String, Dialog>{};
-
-    // User actions outside any session/dialog (MESSAGE).
-    _applicants = <Message>{};
-
-    _sessions = <String?, RTCSession>{};
-    _transport = null;
-    _contact = null;
-    _status = C.STATUS_INIT;
-    _error = null;
-    _transactions = TransactionBag();
-
-    // Custom UA empty object for high level use.
-    _data = <String, dynamic>{};
-
-    _closeTimer = null;
-
-    // Check configuration argument.
-    if (configuration == null) {
-      throw Exceptions.ConfigurationError('Not enough arguments');
-    }
-
+  UA(Settings configuration) {
+    logger.d('new() [configuration:${configuration.toString()}]');
     // Load configuration.
     try {
       _loadConfig(configuration);
@@ -124,30 +100,44 @@ class UA extends EventManager {
     _registrator = Registrator(this);
   }
 
-  Map<String, dynamic>? _cache;
-  Settings? _configuration;
-  DynamicSettings? _dynConfiguration;
-  late Map<String, Dialog> _dialogs;
-  late Set<Message> _applicants;
-  Map<String?, RTCSession> _sessions = <String?, RTCSession>{};
+  final Map<String?, Subscriber> _subscribers = <String?, Subscriber>{};
+  final Map<String, dynamic> _cache = <String, dynamic>{
+    'credentials': <dynamic>{}
+  };
+
+  final Settings _configuration = Settings();
+  DynamicSettings? _dynConfiguration = DynamicSettings();
+
+  final Map<String, Dialog> _dialogs = <String, Dialog>{};
+
+  // User actions outside any session/dialog (MESSAGE/OPTIONS).
+  final Set<Applicant> _applicants = <Applicant>{};
+
+  final Map<String?, RTCSession> _sessions = <String?, RTCSession>{};
   Transport? _transport;
   Contact? _contact;
-  int? _status;
+  int _status = C.STATUS_INIT;
   int? _error;
-  TransactionBag _transactions = TransactionBag();
-  Map<String, dynamic>? _data;
-  Timer? _closeTimer;
-  dynamic _registrator;
+  final TransactionBag _transactions = TransactionBag();
 
-  int? get status => _status;
+// Custom UA empty object for high level use.
+  final Map<String, dynamic> _data = <String, dynamic>{};
+
+  Timer? _closeTimer;
+  late Registrator _registrator;
+
+  int get status => _status;
 
   Contact? get contact => _contact;
 
-  Settings? get configuration => _configuration;
+  Settings get configuration => _configuration;
 
   Transport? get transport => _transport;
 
   TransactionBag get transactions => _transactions;
+
+  // Flag that indicates whether UA is currently stopping
+  bool _stopping = false;
 
   // ============
   //  High Level API
@@ -158,12 +148,12 @@ class UA extends EventManager {
    * Resume UA after being closed.
    */
   void start() {
-    logger.debug('start()');
+    logger.d('start()');
 
     if (_status == C.STATUS_INIT) {
       _transport!.connect();
     } else if (_status == C.STATUS_USER_CLOSED) {
-      logger.debug('restarting UA');
+      logger.d('restarting UA');
 
       // Disconnect.
       if (_closeTimer != null) {
@@ -176,21 +166,21 @@ class UA extends EventManager {
       _status = C.STATUS_INIT;
       _transport!.connect();
     } else if (_status == C.STATUS_READY) {
-      logger.debug('UA is in READY status, not restarted');
+      logger.d('UA is in READY status, not restarted');
     } else {
-      logger.debug(
+      logger.d(
           'ERROR: connection is down, Auto-Recovery system is trying to reconnect');
     }
 
     // Set dynamic configuration.
-    _dynConfiguration!.register = _configuration!.register;
+    _dynConfiguration!.register = _configuration.register;
   }
 
   /**
    * Register.
    */
   void register() {
-    logger.debug('register()');
+    logger.d('register()');
     _dynConfiguration!.register = true;
     _registrator.register();
   }
@@ -199,10 +189,29 @@ class UA extends EventManager {
    * Unregister.
    */
   void unregister({bool all = false}) {
-    logger.debug('unregister()');
+    logger.d('unregister()');
 
     _dynConfiguration!.register = false;
     _registrator.unregister(all);
+  }
+
+  /**
+   * Create subscriber instance
+   */
+  Subscriber subscribe(
+    String target,
+    String eventName,
+    String accept, [
+    int expires = 900,
+    String? contentType,
+    String? allowEvents,
+    Map<String, dynamic> requestParams = const <String, dynamic>{},
+    List<String> extraHeaders = const <String>[],
+  ]) {
+    logger.d('subscribe()');
+
+    return Subscriber(this, target, eventName, accept, expires, contentType,
+        allowEvents, requestParams, extraHeaders);
   }
 
   /**
@@ -215,7 +224,7 @@ class UA extends EventManager {
   /**
    * Registration state.
    */
-  bool? isRegistered() {
+  bool isRegistered() {
     return _registrator.registered;
   }
 
@@ -236,7 +245,7 @@ class UA extends EventManager {
    *
    */
   RTCSession call(String target, Map<String, dynamic> options) {
-    logger.debug('call()');
+    logger.d('call()');
     RTCSession session = RTCSession(this);
     session.connect(target, options);
     return session;
@@ -252,10 +261,28 @@ class UA extends EventManager {
    * -throws {TypeError}
    *
    */
-  Message sendMessage(
-      String target, String body, Map<String, dynamic>? options) {
-    logger.debug('sendMessage()');
+  Message sendMessage(String target, String body, Map<String, dynamic>? options,
+      Map<String, dynamic>? params) {
+    logger.d('sendMessage()');
     Message message = Message(this);
+    message.send(target, body, options, params);
+    return message;
+  }
+
+  /**
+   * Send a Options.
+   *
+   * -param {String} target
+   * -param {String} body
+   * -param {Object} [options]
+   *
+   * -throws {TypeError}
+   *
+   */
+  Options sendOptions(
+      String target, String body, Map<String, dynamic>? options) {
+    logger.d('sendOptions()');
+    Options message = Options(this);
     message.send(target, body, options);
     return message;
   }
@@ -263,8 +290,8 @@ class UA extends EventManager {
   /**
    * Terminate ongoing sessions.
    */
-  void terminateSessions(Map<String, Object> options) {
-    logger.debug('terminateSessions()');
+  void terminateSessions(Map<String, dynamic> options) {
+    logger.d('terminateSessions()');
     _sessions.forEach((String? key, _) {
       if (!_sessions[key]!.isEnded()) {
         _sessions[key]!.terminate(options);
@@ -277,13 +304,13 @@ class UA extends EventManager {
    *
    */
   void stop() {
-    logger.debug('stop()');
+    logger.d('stop()');
 
     // Remove dynamic settings.
     _dynConfiguration = null;
 
     if (_status == C.STATUS_USER_CLOSED) {
-      logger.debug('UA already closed');
+      logger.d('UA already closed');
 
       return;
     }
@@ -297,22 +324,37 @@ class UA extends EventManager {
     // Run  _terminate_ on every Session.
     _sessions.forEach((String? key, _) {
       if (_sessions.containsKey(key)) {
-        logger.debug('closing session $key');
+        logger.d('closing session $key');
         try {
           RTCSession rtcSession = _sessions[key]!;
           if (!rtcSession.isEnded()) {
             rtcSession.terminate();
           }
-        } catch (error, s) {
-          Log.e(error.toString(), null, s);
+        } catch (e, s) {
+          logger.e(e.toString(), error: e, stackTrace: s);
         }
       }
     });
 
+    // Run _terminate on ever subscription
+    _subscribers.forEach((String? key, _) {
+      if (_subscribers.containsKey(key)) {
+        logger.d('closing subscription $key');
+        try {
+          Subscriber subscriber = _subscribers[key]!;
+          subscriber.terminate(null);
+        } catch (e, s) {
+          logger.e(e.toString(), error: e, stackTrace: s);
+        }
+      }
+    });
+
+    _stopping = true;
+
     // Run  _close_ on every applicant.
-    for (Message message in _applicants) {
+    for (Applicant applicant in _applicants) {
       try {
-        message.close();
+        applicant.close();
       } catch (error) {}
     }
 
@@ -323,7 +365,7 @@ class UA extends EventManager {
       _transport!.disconnect();
     } else {
       _closeTimer = setTimeout(() {
-        logger.info('Closing connection');
+        logger.i('Closing connection');
         _closeTimer = null;
         _transport!.disconnect();
       }, 2000);
@@ -336,7 +378,7 @@ class UA extends EventManager {
    * -returns {DartSIP.URI|null}
    */
   URI? normalizeTarget(String? target) {
-    return Utils.normalizeTarget(target, _configuration!.hostport_params);
+    return Utils.normalizeTarget(target, _configuration.hostport_params);
   }
 
   /**
@@ -345,13 +387,13 @@ class UA extends EventManager {
   String? get(String parameter) {
     switch (parameter) {
       case 'realm':
-        return _configuration!.realm;
+        return _configuration.realm;
 
       case 'ha1':
-        return _configuration!.ha1;
+        return _configuration.ha1;
 
       default:
-        logger.error('get() | cannot get "$parameter" parameter in runtime');
+        logger.e('get() | cannot get "$parameter" parameter in runtime');
 
         return null;
     }
@@ -365,32 +407,32 @@ class UA extends EventManager {
     switch (parameter) {
       case 'password':
         {
-          _configuration!.password = value.toString();
+          _configuration.password = value.toString();
           break;
         }
 
       case 'realm':
         {
-          _configuration!.realm = value.toString();
+          _configuration.realm = value.toString();
           break;
         }
 
       case 'ha1':
         {
-          _configuration!.ha1 = value.toString();
+          _configuration.ha1 = value.toString();
           // Delete the plain SIP password.
-          _configuration!.password = null;
+          _configuration.password = null;
           break;
         }
 
       case 'display_name':
         {
-          _configuration!.display_name = value;
+          _configuration.display_name = value;
           break;
         }
 
       default:
-        logger.error('set() | cannot set "$parameter" parameter in runtime');
+        logger.e('set() | cannot set "$parameter" parameter in runtime');
 
         return false;
     }
@@ -419,6 +461,20 @@ class UA extends EventManager {
   }
 
   /**
+   * Subscriber
+   */
+  void newSubscriber({required Subscriber sub}) {
+    _subscribers[sub.id] = sub;
+  }
+
+  /**
+   * Subscriber destroyed.
+   */
+  void destroySubscriber(Subscriber sub) {
+    _subscribers.remove(sub.id);
+  }
+
+  /**
    * Dialog
    */
   void newDialog(Dialog dialog) {
@@ -436,8 +492,24 @@ class UA extends EventManager {
    *  Message
    */
   void newMessage(Message message, String originator, dynamic request) {
+    if (_stopping) {
+      return;
+    }
     _applicants.add(message);
     emit(EventNewMessage(
+        message: message, originator: originator, request: request));
+  }
+
+  /**
+   *  Options
+   */
+  void newOptions(Options message, String originator, dynamic request) {
+    if (_stopping) {
+      return;
+    }
+    _applicants.add(message);
+
+    emit(EventNewOptions(
         message: message, originator: originator, request: request));
   }
 
@@ -445,6 +517,19 @@ class UA extends EventManager {
    *  Message destroyed.
    */
   void destroyMessage(Message message) {
+    if (_stopping) {
+      return;
+    }
+    _applicants.remove(message);
+  }
+
+  /**
+   *  Options destroyed.
+   */
+  void destroyOptions(Options message) {
+    if (_stopping) {
+      return;
+    }
     _applicants.remove(message);
   }
 
@@ -509,9 +594,9 @@ class UA extends EventManager {
     DartSIP_C.SipMethod? method = request.method;
 
     // Check that request URI points to us.
-    if (request.ruri!.user != _configuration!.uri.user &&
+    if (request.ruri!.user != _configuration.uri.user &&
         request.ruri!.user != _contact!.uri!.user) {
-      logger.debug('Request-URI does not point to us');
+      logger.d('Request-URI does not point to us');
       if (request.method != SipMethod.ACK) {
         request.reply_sl(404);
       }
@@ -548,7 +633,13 @@ class UA extends EventManager {
      * They are processed as if they had been received outside the dialog.
      */
     if (method == SipMethod.OPTIONS) {
-      request.reply(200);
+      if (!hasListeners(EventNewOptions())) {
+        request.reply(200);
+        return;
+      }
+      Options message = Options(this);
+      message.init_incoming(request);
+      return;
     } else if (method == SipMethod.MESSAGE) {
       if (!hasListeners(EventNewMessage())) {
         request.reply(405);
@@ -560,6 +651,12 @@ class UA extends EventManager {
     } else if (method == SipMethod.INVITE) {
       // Initial INVITE.
       if (request.to_tag != null && !hasListeners(EventNewRTCSession())) {
+        request.reply(405);
+
+        return;
+      }
+    } else if (method == SipMethod.SUBSCRIBE) {
+      if (listeners['newSubscribe']?.length == 0) {
         request.reply(405);
 
         return;
@@ -580,7 +677,7 @@ class UA extends EventManager {
               dialog = _findDialog(
                   replaces.call_id, replaces.from_tag!, replaces.to_tag!);
               if (dialog != null) {
-                session = dialog.owner;
+                session = dialog.owner as RTCSession?;
                 if (!session!.isEnded()) {
                   session.receiveRequest(request);
                 } else {
@@ -594,7 +691,7 @@ class UA extends EventManager {
               session.init_incoming(request);
             }
           } else {
-            logger.error('INVITE received but WebRTC is not supported');
+            logger.e('INVITE received but WebRTC is not supported');
             request.reply(488);
           }
           break;
@@ -608,7 +705,7 @@ class UA extends EventManager {
           if (session != null) {
             session.receiveRequest(request);
           } else {
-            logger.debug('received CANCEL request for a non existent session');
+            logger.d('received CANCEL request for a non existent session');
           }
           break;
         case SipMethod.ACK:
@@ -621,6 +718,9 @@ class UA extends EventManager {
           // Receive sip event.
           emit(EventSipEvent(request: request));
           request.reply(200);
+          break;
+        case SipMethod.SUBSCRIBE:
+          emit(EventOnNewSubscribe(request: request));
           break;
         default:
           request.reply(405);
@@ -635,13 +735,12 @@ class UA extends EventManager {
       if (dialog != null) {
         dialog.receiveRequest(request);
       } else if (method == SipMethod.NOTIFY) {
-        session =
-            _findSession(request.call_id!, request.from_tag, request.to_tag);
-        if (session != null) {
-          session.receiveRequest(request);
+        Subscriber? sub = _findSubscriber(
+            request.call_id!, request.from_tag!, request.to_tag!);
+        if (sub != null) {
+          sub.receiveRequest(request);
         } else {
-          logger
-              .debug('received NOTIFY request for a non existent subscription');
+          logger.d('received NOTIFY request for a non existent subscription');
           request.reply(481, 'Subscription does not exist');
         }
       }
@@ -660,6 +759,13 @@ class UA extends EventManager {
   // ============
   // Utils.
   // ============
+
+  Subscriber? _findSubscriber(String call_id, String from_tag, String to_tag) {
+    String id = call_id;
+    Subscriber? sub = _subscribers[id];
+
+    return sub;
+  }
 
   /**
    * Get the session to which the request belongs to, if any.
@@ -710,31 +816,31 @@ class UA extends EventManager {
     // Post Configuration Process.
 
     // Allow passing 0 number as display_name.
-    if (_configuration!.display_name is num &&
-        (_configuration!.display_name as num?) == 0) {
-      _configuration!.display_name = '0';
+    if (_configuration.display_name is num &&
+        (_configuration.display_name as num?) == 0) {
+      _configuration.display_name = '0';
     }
 
     // Instance-id for GRUU.
-    _configuration!.instance_id ??= Utils.newUUID();
+    _configuration.instance_id ??= Utils.newUUID();
 
     // Jssip_id instance parameter. Static random tag of length 5.
-    _configuration!.jssip_id = Utils.createRandomToken(5);
+    _configuration.jssip_id = Utils.createRandomToken(5);
 
     // String containing _configuration.uri without scheme and user.
-    URI hostport_params = _configuration!.uri.clone();
+    URI hostport_params = _configuration.uri.clone();
 
     hostport_params.user = null;
-    _configuration!.hostport_params = hostport_params
+    _configuration.hostport_params = hostport_params
         .toString()
         .replaceAll(RegExp(r'sip:', caseSensitive: false), '');
 
     // Transport.
     try {
-      _transport = Transport(_configuration!.sockets, <String, int>{
+      _transport = Transport(_configuration.sockets!, <String, int>{
         // Recovery options.
-        'max_interval': _configuration!.connection_recovery_max_interval,
-        'min_interval': _configuration!.connection_recovery_min_interval
+        'max_interval': _configuration.connection_recovery_max_interval,
+        'min_interval': _configuration.connection_recovery_min_interval
       });
 
       // Transport event callbacks.
@@ -743,67 +849,67 @@ class UA extends EventManager {
       _transport!.ondisconnect = onTransportDisconnect;
       _transport!.ondata = onTransportData;
     } catch (e) {
-      logger.error('Failed to _loadConfig: ${e.toString()}');
-      throw Exceptions.ConfigurationError('sockets', _configuration!.sockets);
+      logger.e('Failed to _loadConfig: ${e.toString()}');
+      throw Exceptions.ConfigurationError('sockets', _configuration.sockets);
     }
 
     String transport = 'ws';
 
-    if (_configuration!.sockets!.isNotEmpty) {
-      transport = _configuration!.sockets!.first.via_transport.toLowerCase();
+    if (_configuration.sockets!.isNotEmpty) {
+      transport = _configuration.sockets!.first.via_transport.toLowerCase();
     }
 
     // Remove sockets instance from configuration object.
     // TODO(cloudwebrtc):  need dispose??
-    _configuration!.sockets = null;
+    _configuration.sockets = null;
 
     // Check whether authorization_user is explicitly defined.
     // Take '_configuration.uri.user' value if not.
-    _configuration!.authorization_user ??= _configuration!.uri.user;
+    _configuration.authorization_user ??= _configuration.uri.user;
 
     // If no 'registrar_server' is set use the 'uri' value without user portion and
     // without URI params/headers.
-    if (_configuration!.registrar_server == null) {
-      URI registrar_server = _configuration!.uri.clone();
+    if (_configuration.registrar_server == null) {
+      URI registrar_server = _configuration.uri.clone();
       registrar_server.user = null;
       registrar_server.clearParams();
       registrar_server.clearHeaders();
-      _configuration!.registrar_server = registrar_server;
+      _configuration.registrar_server = registrar_server;
     }
 
     // User no_answer_timeout.
-    _configuration!.no_answer_timeout *= 1000;
+    _configuration.no_answer_timeout *= 1000;
 
     // Via Host.
-    if (_configuration!.contact_uri != null) {
-      _configuration!.via_host = _configuration!.contact_uri.host;
+    if (_configuration.contact_uri != null) {
+      _configuration.via_host = _configuration.contact_uri.host;
     }
     // Contact URI.
     else {
-      _configuration!.contact_uri = URI(
+      _configuration.contact_uri = URI(
           'sip',
           Utils.createRandomToken(8),
-          _configuration!.via_host,
+          _configuration.via_host,
           null,
           <dynamic, dynamic>{'transport': transport});
     }
-    _contact = Contact(_configuration!.contact_uri);
+    _contact = Contact(_configuration.contact_uri);
     return;
   }
 
-/**
- * Transport event handlers
- */
+  /**
+   * Transport event handlers
+   */
 
 // Transport connecting event.
   void onTransportConnecting(WebSocketInterface? socket, int? attempts) {
-    logger.debug('Transport connecting');
+    logger.d('Transport connecting');
     emit(EventSocketConnecting(socket: socket));
   }
 
 // Transport connected event.
   void onTransportConnect(Transport transport) {
-    logger.debug('Transport connected');
+    logger.d('Transport connected');
     if (_status == C.STATUS_USER_CLOSED) {
       return;
     }
@@ -882,4 +988,8 @@ class UA extends EventManager {
       }
     }
   }
+}
+
+mixin Applicant {
+  void close();
 }

@@ -30,14 +30,14 @@ class Registrator {
     _ua = ua;
     _transport = transport;
 
-    _registrar = ua.configuration!.registrar_server;
-    _expires = ua.configuration!.register_expires;
+    _registrar = ua.configuration.registrar_server;
+    _expires = ua.configuration.register_expires;
 
     // Call-ID and CSeq values RFC3261 10.2.
     _call_id = utils.createRandomToken(22);
     _cseq = 0;
 
-    _to_uri = ua.configuration!.uri;
+    _to_uri = ua.configuration.uri;
 
     _registrationTimer = null;
 
@@ -48,7 +48,7 @@ class Registrator {
     _registered = false;
 
     // Contact header.
-    _contact = _ua!.contact.toString();
+    _contact = _ua.contact.toString();
 
     // Sip.ice media feature tag (RFC 5768).
     _contact += ';+sip.ice';
@@ -61,30 +61,30 @@ class Registrator {
 
     // Custom Contact URI params for REGISTER and un-REGISTER.
     setExtraContactUriParams(
-        ua.configuration!.register_extra_contact_uri_params);
+        ua.configuration.register_extra_contact_uri_params);
 
     if (reg_id != null) {
       _contact += ';reg-id=$reg_id';
       _contact +=
-          ';+sip.instance="<urn:uuid:${_ua!.configuration!.instance_id}>"';
+          ';+sip.instance="<urn:uuid:${_ua.configuration.instance_id}>"';
     }
   }
 
-  UA? _ua;
+  late UA _ua;
   Transport? _transport;
-  URI? _registrar;
+  late URI _registrar;
   int? _expires;
   String? _call_id;
   late int _cseq;
   URI? _to_uri;
   Timer? _registrationTimer;
   late bool _registering;
-  bool? _registered;
+  bool _registered = false;
   late String _contact;
   List<String>? _extraHeaders;
   late String _extraContactParams;
 
-  bool? get registered => _registered;
+  bool get registered => _registered;
 
   Transport? get transport => _transport;
 
@@ -122,7 +122,7 @@ class Registrator {
 
   void register() {
     if (_registering) {
-      logger.debug('Register request in progress...');
+      logger.d('Register request in progress...');
       return;
     }
 
@@ -132,7 +132,7 @@ class Registrator {
         .add('Contact: $_contact;expires=$_expires$_extraContactParams');
     extraHeaders.add('Expires: $_expires');
 
-    logger.warn(_contact);
+    logger.w(_contact);
 
     OutgoingRequest request = OutgoingRequest(
         SipMethod.REGISTER,
@@ -180,7 +180,7 @@ class Registrator {
           _registering = false;
 
           if (!event.response!.hasHeader('Contact')) {
-            logger.debug(
+            logger.d(
                 'no Contact header in response to REGISTER, response ignored');
             return;
           }
@@ -191,10 +191,10 @@ class Registrator {
           });
           // Get the Contact pointing to us and update the expires value accordingly.
           dynamic contact = contacts.firstWhere(
-              (dynamic element) => element.uri.user == _ua!.contact!.uri!.user);
+              (dynamic element) => element.uri.user == _ua.contact!.uri!.user);
 
           if (contact == null) {
-            logger.debug('no Contact header pointing to us, response ignored');
+            logger.d('no Contact header pointing to us, response ignored');
             return;
           }
 
@@ -219,26 +219,26 @@ class Registrator {
             _registrationTimer = null;
             // If there are no listeners for registrationExpiring, reregistration.
             // If there are listeners, var the listening do the register call.
-            if (!_ua!.hasListeners(EventRegistrationExpiring())) {
+            if (!_ua.hasListeners(EventRegistrationExpiring())) {
               register();
             } else {
-              _ua!.emit(EventRegistrationExpiring());
+              _ua.emit(EventRegistrationExpiring());
             }
           }, (expires * 1000) - 5000);
 
           // Save gruu values.
           if (contact.hasParam('temp-gruu')) {
-            _ua!.contact!.temp_gruu =
+            _ua.contact!.temp_gruu =
                 contact.getParam('temp-gruu').replaceAll('"', '');
           }
           if (contact.hasParam('pub-gruu')) {
-            _ua!.contact!.pub_gruu =
+            _ua.contact!.pub_gruu =
                 contact.getParam('pub-gruu').replaceAll('"', '');
           }
 
-          if (!_registered!) {
+          if (!_registered) {
             _registered = true;
-            _ua!.registered(response: event.response);
+            _ua.registered(response: event.response);
           }
         } else
         // Interval too brief RFC3261 10.2.8.
@@ -256,8 +256,7 @@ class Registrator {
             register();
           } else {
             // This response MUST contain a Min-Expires header field.
-            logger.debug(
-                '423 response received for REGISTER without Min-Expires');
+            logger.d('423 response received for REGISTER without Min-Expires');
 
             _registrationFailure(
                 event.response, DartSIP_C.CausesType.SIP_FAILURE_CODE);
@@ -269,15 +268,15 @@ class Registrator {
       }
     });
 
-    RequestSender request_sender = RequestSender(_ua!, request, handlers);
+    RequestSender request_sender = RequestSender(_ua, request, handlers);
 
     _registering = true;
     request_sender.send();
   }
 
   void unregister(bool unregister_all) {
-    if (_registered == null) {
-      logger.debug('already unregistered');
+    if (_registered == false) {
+      logger.d('already unregistered');
 
       return;
     }
@@ -336,13 +335,13 @@ class Registrator {
       }
     });
 
-    RequestSender request_sender = RequestSender(_ua!, request, handlers);
+    RequestSender request_sender = RequestSender(_ua, request, handlers);
 
     request_sender.send();
   }
 
   void close() {
-    if (_registered!) {
+    if (_registered) {
       unregister(false);
     }
   }
@@ -354,25 +353,25 @@ class Registrator {
       _registrationTimer = null;
     }
 
-    if (_registered!) {
+    if (_registered) {
       _registered = false;
-      _ua!.unregistered();
+      _ua.unregistered();
     }
   }
 
   void _registrationFailure(dynamic response, String cause) {
     _registering = false;
-    _ua!.registrationFailed(response: response, cause: cause);
+    _ua.registrationFailed(response: response, cause: cause);
 
-    if (_registered!) {
+    if (_registered) {
       _registered = false;
-      _ua!.unregistered(response: response, cause: cause);
+      _ua.unregistered(response: response, cause: cause);
     }
   }
 
   void _unregistered([dynamic response, String? cause]) {
     _registering = false;
     _registered = false;
-    _ua!.unregistered(response: response, cause: cause);
+    _ua.unregistered(response: response, cause: cause);
   }
 }
